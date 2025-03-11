@@ -1,14 +1,26 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
 *.egg-info/
+.installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual Environment
 .env
 .venv
 env/
@@ -17,34 +29,23 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE specific files
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+
+# OS specific
 .DS_Store
 Thumbs.db
 
-# Testing and coverage
-.coverage
-.coverage.*
-htmlcov/
-.pytest_cache/
-.tox/
-nosetests.xml
-coverage.xml
-*.cover
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Local development settings
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Logs
-logs/
-*.log
+# Package manager
+uv.lock
