@@ -1,0 +1,39 @@
+{
+  "success": true,
+  "output": {
+    "nodes": {
+      "model.example.example_model": {
+        "name": "example_model",
+        "resource_type": "model",
+        "package_name": "example",
+        "path": "models/example_model.sql",
+        "original_file_path": "models/example_model.sql",
+        "unique_id": "model.example.example_model",
+        "config": {
+          "materialized": "table"
+        }
+      },
+      "model.example.another_model": {
+        "name": "another_model",
+        "resource_type": "model",
+        "package_name": "example",
+        "path": "models/another_model.sql",
+        "original_file_path": "models/another_model.sql",
+        "unique_id": "model.example.another_model",
+        "config": {
+          "materialized": "view"
+        }
+      },
+      "test.example.unique_example_model_id.5cb9d5e943": {
+        "name": "unique_example_model_id",
+        "resource_type": "test",
+        "package_name": "example",
+        "path": "models/schema.yml",
+        "original_file_path": "models/schema.yml",
+        "unique_id": "test.example.unique_example_model_id.5cb9d5e943"
+      }
+    }
+  },
+  "error": null,
+  "returncode": 0
+}

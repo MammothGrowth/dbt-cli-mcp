@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "output": {
+    "results": [
+      {
+        "status": "success",
+        "model": "example_model",
+        "execution_time": 1.5,
+        "message": "OK"
+      },
+      {
+        "status": "success",
+        "model": "another_model",
+        "execution_time": 0.8,
+        "message": "OK"
+      }
+    ],
+    "elapsed_time": 2.3,
+    "success": true
+  },
+  "error": null,
+  "returncode": 0
+}

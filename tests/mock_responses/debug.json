@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "output": {
+    "debug_info": {
+      "version": {
+        "installed": "1.5.0",
+        "latest": "1.5.2",
+        "update_available": true
+      },
+      "connection": {
+        "type": "postgres",
+        "success": true,
+        "message": "Connection test succeeded"
+      },
+      "project": {
+        "name": "example_project",
+        "path": "/path/to/project",
+        "profile": "default",
+        "target": "dev"
+      },
+      "dependencies": {
+        "installed": true,
+        "uptodate": true
+      }
+    }
+  },
+  "error": null,
+  "returncode": 0
+}

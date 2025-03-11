@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "output": {
+    "results": [
+      {
+        "status": "pass",
+        "test": "not_null_example_model_id",
+        "model": "example_model",
+        "message": "PASS not_null_example_model_id"
+      },
+      {
+        "status": "pass",
+        "test": "unique_example_model_id",
+        "model": "example_model",
+        "message": "PASS unique_example_model_id"
+      },
+      {
+        "status": "pass",
+        "test": "not_null_another_model_id",
+        "model": "another_model",
+        "message": "PASS not_null_another_model_id"
+      }
+    ],
+    "elapsed_time": 1.2,
+    "success": true
+  },
+  "error": null,
+  "returncode": 0
+}
