@@ -9,6 +9,7 @@ A Model Context Protocol (MCP) server that wraps the dbt CLI tool, enabling AI c
 - Command-line interface for direct interaction
 - Environment variable management for dbt projects
 - Configurable dbt executable path
+- Flexible profiles.yml location configuration
 
 ## Installation
 
@@ -49,6 +50,9 @@ The package provides a command-line interface for direct interaction with dbt:
 # Run dbt models
 dbt-mcp run --models customers --project-dir /path/to/project
 
+# Run dbt models with a custom profiles directory
+dbt-mcp run --models customers --project-dir /path/to/project --profiles-dir /path/to/profiles
+
 # List dbt resources
 dbt-mcp ls --resource-type model --output-format json
 
@@ -66,24 +70,12 @@ You can also use the module directly:
 python -m src.cli run --models customers --project-dir /path/to/project
 ```
 
-### Running the Server
-
-```bash
-# Run the server using MCP development tools
-mcp dev src/server.py
-
-# Or run directly
-python -m src.server
-
-# With custom configuration
-python -m src.server --dbt-path /path/to/dbt --log-level DEBUG
-```
-
 ### Command Line Options
 
 - `--dbt-path`: Path to dbt executable (default: "dbt")
 - `--env-file`: Path to environment file (default: ".env")
 - `--log-level`: Logging level (default: "INFO")
+- `--profiles-dir`: Path to directory containing profiles.yml file (defaults to project-dir if not specified)
 
 ### Environment Variables
 
@@ -92,6 +84,7 @@ The server can also be configured using environment variables:
 - `DBT_PATH`: Path to dbt executable
 - `ENV_FILE`: Path to environment file
 - `LOG_LEVEL`: Logging level
+- `DBT_PROFILES_DIR`: Path to directory containing profiles.yml file
 
 ### Using with MCP Clients
 
@@ -106,6 +99,7 @@ To use the server with an MCP client like Claude for Desktop, add it to the clie
       "env": {
         "DBT_PATH": "/absolute/path/to/dbt",
         "ENV_FILE": ".env"
+        // You can also set DBT_PROFILES_DIR here for a server-wide default
       }
     }
   }
@@ -124,8 +118,43 @@ The server provides the following MCP tools:
 - `dbt_deps`: Install dbt package dependencies
 - `dbt_seed`: Load CSV files as seed data
 - `dbt_show`: Preview model results
-- `dbt_build`: Run build command
-- `configure_dbt_path`: Configure dbt executable path
+<arguments>
+{
+  "models": "customers",
+  "project_dir": "/path/to/dbt/project",
+  "limit": 10
+}
+</arguments>
+</use_mcp_tool>
+```
+
+### dbt Profiles Configuration
+
+When using the dbt MCP tools, it's important to understand how dbt profiles are handled:
+
+1. The `project_dir` parameter must point to a directory that contains both:
+   - A valid `dbt_project.yml` file
+   - A valid `profiles.yml` file with the profile referenced in the project
+
+2. The MCP server automatically sets the `DBT_PROFILES_DIR` environment variable to the absolute path of the directory specified in `project_dir`. This tells dbt where to look for the profiles.yml file.
+
+3. If you encounter a "Could not find profile named 'X'" error, it means either:
+   - The profiles.yml file is missing from the project directory
+   - The profiles.yml file doesn't contain the profile referenced in dbt_project.yml
+
+Example of a valid profiles.yml file:
+
+```yaml
+jaffle_shop:  # This name must match the profile in dbt_project.yml
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: 'jaffle_shop.duckdb'
+      threads: 24
+```
+
+When running commands through the MCP server, ensure your project directory is structured correctly with both configuration files present.
 
 ## Development
 
@@ -156,23 +185,6 @@ If you're seeing errors about missing files in the jaffle_shop_duckdb directory,
 ```bash
 git submodule update --init
 ```
-
-## Converting to Git Submodule
-
-If you have an existing clone of this repository with a local copy of jaffle_shop_duckdb and want to convert it to use a Git submodule instead, follow these steps:
-
-```bash
-# Remove the current local copy
-rm -rf dbt_integration_tests/jaffle_shop_duckdb
-
-# Add the GitHub repository as a submodule
-git submodule add https://github.com/dbt-labs/jaffle_shop_duckdb dbt_integration_tests/jaffle_shop_duckdb
-
-# Commit the changes
-git commit -m "Replace jaffle_shop_duckdb with Git submodule"
-```
-
-This approach keeps the jaffle_shop_duckdb code out of your repository while still making it available for tests.
 
 ## License
 

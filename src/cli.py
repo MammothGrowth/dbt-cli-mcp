@@ -52,6 +52,7 @@ def parse_args() -> argparse.Namespace:
     run_parser.add_argument("--selector", help="Named selector to use")
     run_parser.add_argument("--exclude", help="Models to exclude")
     run_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    run_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     run_parser.add_argument("--full-refresh", help="Perform a full refresh", action="store_true")
     
     # dbt_test command
@@ -60,6 +61,7 @@ def parse_args() -> argparse.Namespace:
     test_parser.add_argument("--selector", help="Named selector to use")
     test_parser.add_argument("--exclude", help="Models to exclude")
     test_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    test_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     
     # dbt_ls command
     ls_parser = subparsers.add_parser("ls", help="List dbt resources")
@@ -68,6 +70,7 @@ def parse_args() -> argparse.Namespace:
     ls_parser.add_argument("--exclude", help="Models to exclude")
     ls_parser.add_argument("--resource-type", help="Type of resource to list")
     ls_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    ls_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     ls_parser.add_argument("--output-format", help="Output format", choices=["json", "name", "path", "selector"], default="json")
     
     # dbt_compile command
@@ -76,25 +79,30 @@ def parse_args() -> argparse.Namespace:
     compile_parser.add_argument("--selector", help="Named selector to use")
     compile_parser.add_argument("--exclude", help="Models to exclude")
     compile_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    compile_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     
     # dbt_debug command
     debug_parser = subparsers.add_parser("debug", help="Debug dbt project")
     debug_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    debug_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     
     # dbt_deps command
     deps_parser = subparsers.add_parser("deps", help="Install dbt package dependencies")
     deps_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    deps_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     
     # dbt_seed command
     seed_parser = subparsers.add_parser("seed", help="Load CSV files as seed data")
     seed_parser.add_argument("--selector", help="Named selector to use")
     seed_parser.add_argument("--exclude", help="Seeds to exclude")
     seed_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    seed_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     
     # dbt_show command
     show_parser = subparsers.add_parser("show", help="Preview model results")
     show_parser.add_argument("--models", help="Specific model to show", required=True)
     show_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    show_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     show_parser.add_argument("--limit", help="Limit the number of rows returned", type=int)
     
     # dbt_build command
@@ -103,6 +111,7 @@ def parse_args() -> argparse.Namespace:
     build_parser.add_argument("--selector", help="Named selector to use")
     build_parser.add_argument("--exclude", help="Models to exclude")
     build_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
+    build_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     build_parser.add_argument("--full-refresh", help="Perform a full refresh", action="store_true")
     
     # configure command
@@ -113,7 +122,7 @@ def parse_args() -> argparse.Namespace:
 
 
 # Define tool functions directly
-async def run_dbt_run(models=None, selector=None, exclude=None, project_dir=".", full_refresh=False):
+async def run_dbt_run(models=None, selector=None, exclude=None, project_dir=".", profiles_dir=None, full_refresh=False):
     """Run dbt models."""
     command = ["run"]
     
@@ -130,7 +139,7 @@ async def run_dbt_run(models=None, selector=None, exclude=None, project_dir=".",
         command.append("--full-refresh")
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt run: {result['error']}"
@@ -140,7 +149,7 @@ async def run_dbt_run(models=None, selector=None, exclude=None, project_dir=".",
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_test(models=None, selector=None, exclude=None, project_dir="."):
+async def run_dbt_test(models=None, selector=None, exclude=None, project_dir=".", profiles_dir=None):
     """Run dbt tests."""
     command = ["test"]
     
@@ -154,7 +163,7 @@ async def run_dbt_test(models=None, selector=None, exclude=None, project_dir="."
         command.extend(["--exclude", exclude])
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt test: {result['error']}"
@@ -164,7 +173,7 @@ async def run_dbt_test(models=None, selector=None, exclude=None, project_dir="."
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_ls(models=None, selector=None, exclude=None, resource_type=None, project_dir=".", output_format="json"):
+async def run_dbt_ls(models=None, selector=None, exclude=None, resource_type=None, project_dir=".", profiles_dir=None, output_format="json"):
     """List dbt resources."""
     command = ["ls"]
     
@@ -185,7 +194,7 @@ async def run_dbt_ls(models=None, selector=None, exclude=None, resource_type=Non
     from src.command import execute_dbt_command, parse_dbt_list_output
     import re
     
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt ls: {result['error']}"
@@ -210,7 +219,7 @@ async def run_dbt_ls(models=None, selector=None, exclude=None, resource_type=Non
     # For other formats, return the raw output
     return str(result["output"])
 
-async def run_dbt_compile(models=None, selector=None, exclude=None, project_dir="."):
+async def run_dbt_compile(models=None, selector=None, exclude=None, project_dir=".", profiles_dir=None):
     """Compile dbt models."""
     command = ["compile"]
     
@@ -224,7 +233,7 @@ async def run_dbt_compile(models=None, selector=None, exclude=None, project_dir=
         command.extend(["--exclude", exclude])
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt compile: {result['error']}"
@@ -234,12 +243,12 @@ async def run_dbt_compile(models=None, selector=None, exclude=None, project_dir=
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_debug(project_dir="."):
+async def run_dbt_debug(project_dir=".", profiles_dir=None):
     """Debug dbt project."""
     command = ["debug"]
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt debug: {result['error']}"
@@ -249,12 +258,12 @@ async def run_dbt_debug(project_dir="."):
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_deps(project_dir="."):
+async def run_dbt_deps(project_dir=".", profiles_dir=None):
     """Install dbt package dependencies."""
     command = ["deps"]
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt deps: {result['error']}"
@@ -264,7 +273,7 @@ async def run_dbt_deps(project_dir="."):
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_seed(selector=None, exclude=None, project_dir="."):
+async def run_dbt_seed(selector=None, exclude=None, project_dir=".", profiles_dir=None):
     """Load CSV files as seed data."""
     command = ["seed"]
     
@@ -275,7 +284,7 @@ async def run_dbt_seed(selector=None, exclude=None, project_dir="."):
         command.extend(["--exclude", exclude])
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt seed: {result['error']}"
@@ -285,7 +294,7 @@ async def run_dbt_seed(selector=None, exclude=None, project_dir="."):
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_show(models, project_dir=".", limit=None):
+async def run_dbt_show(models, project_dir=".", profiles_dir=None, limit=None):
     """Preview model results."""
     command = ["show", "-s", models]
     
@@ -293,7 +302,7 @@ async def run_dbt_show(models, project_dir=".", limit=None):
         command.extend(["--limit", str(limit)])
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt show: {result['error']}"
@@ -303,7 +312,7 @@ async def run_dbt_show(models, project_dir=".", limit=None):
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-async def run_dbt_build(models=None, selector=None, exclude=None, project_dir=".", full_refresh=False):
+async def run_dbt_build(models=None, selector=None, exclude=None, project_dir=".", profiles_dir=None, full_refresh=False):
     """Run build command."""
     command = ["build"]
     
@@ -320,7 +329,7 @@ async def run_dbt_build(models=None, selector=None, exclude=None, project_dir=".
         command.append("--full-refresh")
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir)
+    result = await execute_dbt_command(command, project_dir, profiles_dir)
     
     if not result["success"]:
         error_msg = f"Error executing dbt build: {result['error']}"
@@ -380,6 +389,7 @@ async def main_async() -> None:
             "selector": args.selector,
             "exclude": args.exclude,
             "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir,
             "full_refresh": args.full_refresh
         }
     elif args.command == "test":
@@ -387,7 +397,8 @@ async def main_async() -> None:
             "models": args.models,
             "selector": args.selector,
             "exclude": args.exclude,
-            "project_dir": args.project_dir
+            "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir
         }
     elif args.command == "ls":
         func_args = {
@@ -396,6 +407,7 @@ async def main_async() -> None:
             "exclude": args.exclude,
             "resource_type": args.resource_type,
             "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir,
             "output_format": args.output_format
         }
     elif args.command == "compile":
@@ -403,26 +415,31 @@ async def main_async() -> None:
             "models": args.models,
             "selector": args.selector,
             "exclude": args.exclude,
-            "project_dir": args.project_dir
+            "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir
         }
     elif args.command == "debug":
         func_args = {
-            "project_dir": args.project_dir
+            "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir
         }
     elif args.command == "deps":
         func_args = {
-            "project_dir": args.project_dir
+            "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir
         }
     elif args.command == "seed":
         func_args = {
             "selector": args.selector,
             "exclude": args.exclude,
-            "project_dir": args.project_dir
+            "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir
         }
     elif args.command == "show":
         func_args = {
             "models": args.models,
             "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir,
             "limit": args.limit
         }
     elif args.command == "build":
@@ -431,6 +448,7 @@ async def main_async() -> None:
             "selector": args.selector,
             "exclude": args.exclude,
             "project_dir": args.project_dir,
+            "profiles_dir": args.profiles_dir,
             "full_refresh": args.full_refresh
         }
     elif args.command == "configure":

@@ -46,6 +46,10 @@ def register_tools(mcp: FastMCP) -> None:
             default=".",
             description="Directory containing the dbt project"
         ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
+        ),
         full_refresh: bool = Field(
             default=False,
             description="Whether to perform a full refresh"
@@ -73,7 +77,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt run: {result['error']}"
@@ -100,6 +104,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         )
     ) -> str:
         """Run dbt tests. An AI agent should use this tool when it needs to validate data quality and integrity by running tests defined in a dbt project. This helps ensure that data transformations meet expected business rules and constraints before being used for analysis or reporting.
@@ -121,7 +129,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt test: {result['error']}"
@@ -152,6 +160,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         ),
         output_format: str = Field(
             default="json",
@@ -186,7 +198,7 @@ def register_tools(mcp: FastMCP) -> None:
         command.extend(["--quiet"])
         
         logger.info(f"Executing dbt command: dbt {' '.join(command)}")
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         logger.info(f"dbt command result: success={result['success']}, returncode={result.get('returncode')}")
         
         if not result["success"]:
@@ -246,6 +258,17 @@ def register_tools(mcp: FastMCP) -> None:
                     ]):
                         logger.debug(f"Skipping log message: {name_value[:30]}...")
                         continue
+                    
+                    # Check if the name value is a JSON string
+                    if name_value.startswith('{') and '"name":' in name_value and '"resource_type":' in name_value:
+                        try:
+                            # Parse the JSON string directly
+                            model_data = json.loads(name_value)
+                            if isinstance(model_data, dict) and "name" in model_data and "resource_type" in model_data:
+                                extracted_models.append(model_data)
+                                continue
+                        except json.JSONDecodeError:
+                            logger.debug(f"Failed to parse JSON from: {name_value[:30]}...")
                     
                     # Extract model data from timestamped JSON lines
                     timestamp_prefix_match = re.match(r'^(\d\d:\d\d:\d\d)\s+(.+)$', name_value)
@@ -325,6 +348,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         )
     ) -> str:
         """Compile dbt models. An AI agent should use this tool when it needs to generate the SQL that will be executed without actually running it against the database. This is valuable for validating SQL syntax, previewing transformations, or investigating how dbt interprets models before committing to execution.
@@ -346,7 +373,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt compile: {result['error']}"
@@ -361,6 +388,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         )
     ) -> str:
         """Run dbt debug to validate the project setup. An AI agent should use this tool when it needs to troubleshoot configuration issues, check database connectivity, or verify that all project dependencies are properly installed. This is essential for diagnosing problems before attempting to run models or tests.
@@ -373,7 +404,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt debug: {result['error']}"
@@ -388,6 +419,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         )
     ) -> str:
         """Install dbt package dependencies. An AI agent should use this tool when it needs to install or update external packages that the dbt project depends on. This ensures that all required modules, macros, and models from other packages are available before running the project.
@@ -400,7 +435,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt deps: {result['error']}"
@@ -423,6 +458,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         )
     ) -> str:
         """Load CSV files as seed data. An AI agent should use this tool when it needs to load initial data from CSV files into the database. This is essential for creating reference tables, test datasets, or any static data that models will depend on.
@@ -441,7 +480,7 @@ def register_tools(mcp: FastMCP) -> None:
         if exclude:
             command.extend(["--exclude", exclude])
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt seed: {result['error']}"
@@ -459,6 +498,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         ),
         limit: Optional[int] = Field(
             default=None,
@@ -478,7 +521,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt show: {result['error']}"
@@ -505,6 +548,10 @@ def register_tools(mcp: FastMCP) -> None:
         project_dir: str = Field(
             default=".",
             description="Directory containing the dbt project"
+        ),
+        profiles_dir: Optional[str] = Field(
+            default=None,
+            description="Directory containing the profiles.yml file (defaults to project_dir if not specified)"
         ),
         full_refresh: bool = Field(
             default=False,
@@ -533,7 +580,7 @@ def register_tools(mcp: FastMCP) -> None:
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
-        result = await execute_dbt_command(command, project_dir)
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
         
         if not result["success"]:
             error_msg = f"Error executing dbt build: {result['error']}"

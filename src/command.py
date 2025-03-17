@@ -52,7 +52,8 @@ def load_environment(project_dir: str) -> Dict[str, str]:
 
 async def execute_dbt_command(
     command: List[str],
-    project_dir: str = "."
+    project_dir: str = ".",
+    profiles_dir: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Execute a dbt command and return the result.
@@ -60,6 +61,7 @@ async def execute_dbt_command(
     Args:
         command: List of command arguments (without the dbt executable)
         project_dir: Directory containing the dbt project
+        profiles_dir: Directory containing the profiles.yml file (defaults to project_dir if not specified)
         
     Returns:
         Dictionary containing command result:
@@ -81,16 +83,22 @@ async def execute_dbt_command(
     os.environ["HOME"] = str(Path.home())
     logger.debug(f"Explicitly setting HOME environment variable in os.environ to {os.environ['HOME']}")
     
-    # Set DBT_PROFILES_DIR to the absolute path of the project directory if not already set
-    if "DBT_PROFILES_DIR" not in os.environ:
-        # For testing compatibility, use the value from the .env file if available
+    # Set DBT_PROFILES_DIR based on profiles_dir or project_dir
+    if profiles_dir is not None:
+        # Use the explicitly provided profiles_dir
+        abs_profiles_dir = str(Path(profiles_dir).resolve())
+        os.environ["DBT_PROFILES_DIR"] = abs_profiles_dir
+        logger.debug(f"Setting DBT_PROFILES_DIR in os.environ to {abs_profiles_dir} (from profiles_dir)")
+    else:
+        # Check if there's a value from the .env file
         if "DBT_PROFILES_DIR" in env_vars:
             os.environ["DBT_PROFILES_DIR"] = env_vars["DBT_PROFILES_DIR"]
+            logger.debug(f"Setting DBT_PROFILES_DIR from env_vars to {env_vars['DBT_PROFILES_DIR']}")
         else:
-            # Convert project_dir to an absolute path
+            # Default to project_dir
             abs_project_dir = str(Path(project_dir).resolve())
             os.environ["DBT_PROFILES_DIR"] = abs_project_dir
-            logger.debug(f"Setting DBT_PROFILES_DIR in os.environ to {abs_project_dir} (from {project_dir})")
+            logger.debug(f"Setting DBT_PROFILES_DIR in os.environ to {abs_project_dir} (from project_dir)")
     
     # Update env_vars with the current os.environ
     env_vars.update(os.environ)
@@ -201,6 +209,17 @@ def parse_dbt_list_output(output: Union[str, Dict, List]) -> List[Dict[str, Any]
             ]):
                 continue
             
+            # Check if the name value is a JSON string
+            if name_value.startswith('{') and '"name":' in name_value and '"resource_type":' in name_value:
+                try:
+                    # Parse the JSON string directly
+                    model_data = json.loads(name_value)
+                    if isinstance(model_data, dict) and "name" in model_data and "resource_type" in model_data:
+                        extracted_models.append(model_data)
+                        continue
+                except json.JSONDecodeError:
+                    logger.debug(f"Failed to parse JSON from: {name_value[:30]}...")
+            
             # Extract model data from timestamped JSON lines (e.g., "00:59:06 {json}")
             timestamp_prefix_match = re.match(r'^(\d\d:\d\d:\d\d)\s+(.+)$', name_value)
             if timestamp_prefix_match:
@@ -252,6 +271,16 @@ def parse_dbt_list_output(output: Union[str, Dict, List]) -> List[Dict[str, Any]
                 if not line:
                     continue
                     
+                # Check if the line is a JSON string
+                if line.startswith('{') and '"name":' in line and '"resource_type":' in line:
+                    try:
+                        model_data = json.loads(line)
+                        if isinstance(model_data, dict) and "name" in model_data and "resource_type" in model_data:
+                            models.append(model_data)
+                            continue
+                    except json.JSONDecodeError:
+                        pass
+                
                 # Check for dbt Cloud CLI format with timestamps (e.g., "00:59:06 {json}")
                 timestamp_match = re.match(r'^(\d\d:\d\d:\d\d)\s+(.+)$', line)
                 if timestamp_match:
@@ -260,7 +289,7 @@ def parse_dbt_list_output(output: Union[str, Dict, List]) -> List[Dict[str, Any]
                         model_data = json.loads(json_part)
                         if isinstance(model_data, dict) and "name" in model_data and "resource_type" in model_data:
                             models.append(model_data)
-                        continue
+                            continue
                     except json.JSONDecodeError:
                         pass
                 
