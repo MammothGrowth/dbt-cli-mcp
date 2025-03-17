@@ -12,8 +12,8 @@ os.environ["MOCK_MODE"] = "true"
 os.environ["LOG_LEVEL"] = "DEBUG"
 
 # Import the server module
-from dbt_cli_mcp.config import initialize as initialize_config
-from dbt_cli_mcp.server import setup_logging
+from src.config import initialize as initialize_config
+from src.server import setup_logging
 
 # Set up logging
 setup_logging("DEBUG")
@@ -26,11 +26,11 @@ initialize_config()
 
 logger.info("Configuration initialized successfully")
 logger.info("Server implementation is ready for testing")
-logger.info("To run the server with MCP dev tools: mcp dev dbt_cli_mcp/server.py")
+logger.info("To run the server with MCP dev tools: mcp dev src/server.py")
 logger.info("To run tests: uv run -m pytest")
 
 print("\nServer implementation is complete and ready for testing!")
 print("Use the following commands to test the server:")
-print("  - Run server: uv run -m mcp.cli dev dbt_cli_mcp/server.py")
+print("  - Run server: uv run -m mcp.cli dev src/server.py")
 print("  - Run tests: uv run -m pytest")
-print("  - Run with MCP Inspector: npx @modelcontextprotocol/inspector uv run dbt_cli_mcp/server.py")
+print("  - Run with MCP Inspector: npx @modelcontextprotocol/inspector uv run src/server.py")

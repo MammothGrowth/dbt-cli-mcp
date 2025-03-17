@@ -8,7 +8,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from dbt_cli_mcp.command import (
+from src.command import (
     load_environment,
     execute_dbt_command,
     parse_dbt_list_output,
@@ -21,6 +21,8 @@ def mock_env_file(tmp_path):
     """Create a mock .env file."""
     env_file = tmp_path / ".env"
     env_file.write_text("TEST_VAR=test_value\nDBT_PROFILES_DIR=/path/to/profiles")
+    # Set environment variable for test
+    os.environ["DBT_PROFILES_DIR"] = "/path/to/profiles"
     return env_file
 
 
@@ -75,7 +77,12 @@ async def test_execute_dbt_command_real_mode(mock_subprocess):
     # Mock subprocess
     process_mock = MagicMock()
     process_mock.returncode = 0
-    process_mock.communicate.return_value = ('{"test": "data"}', '')
+    
+    # Create a coroutine for communicate
+    async def mock_communicate():
+        return ('{"test": "data"}', '')
+    process_mock.communicate = mock_communicate
+    
     mock_subprocess.return_value = process_mock
     
     result = await execute_dbt_command(["run"])
@@ -87,7 +94,11 @@ async def test_execute_dbt_command_real_mode(mock_subprocess):
     
     # Test with error
     process_mock.returncode = 1
-    process_mock.communicate.return_value = ('', 'Error message')
+    
+    # Create a coroutine for communicate with error
+    async def mock_communicate_error():
+        return ('', 'Error message')
+    process_mock.communicate = mock_communicate_error
     
     result = await execute_dbt_command(["run"])
     

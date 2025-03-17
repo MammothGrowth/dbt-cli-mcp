@@ -6,7 +6,7 @@ import os
 import pytest
 from unittest.mock import patch
 
-from dbt_cli_mcp.config import (
+from src.config import (
     DEFAULT_CONFIG,
     config,
     load_from_env,
@@ -145,7 +145,7 @@ def test_initialize(reset_config, mock_env):
     os.environ["MOCK_MODE"] = "true"
     
     # Mock validate_config to always return True
-    with patch("dbt_cli_mcp.config.validate_config") as mock_validate:
+    with patch("src.config.validate_config") as mock_validate:
         mock_validate.return_value = True
         
         # Initialize config

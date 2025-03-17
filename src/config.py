@@ -12,10 +12,9 @@ from typing import Dict, Any, Optional
 
 # Default configuration values
 DEFAULT_CONFIG = {
-    "dbt_path": "dbt",  # Default assumes dbt is in PATH
+    "dbt_path": "dbt",  # Default to dbt in PATH
     "env_file": ".env",
     "log_level": "INFO",
-    "mock_mode": False,  # For testing without dbt installed
 }
 
 # Current configuration (initialized with defaults)
@@ -35,7 +34,6 @@ def load_from_env() -> None:
         "DBT_PATH": "dbt_path",
         "ENV_FILE": "env_file",
         "LOG_LEVEL": "log_level",
-        "MOCK_MODE": "mock_mode",
     }
     
     for env_var, config_key in env_mapping.items():
@@ -83,15 +81,13 @@ def validate_config() -> bool:
     Returns:
         True if configuration is valid, False otherwise
     """
-    # Check if dbt_path exists and is executable when not in mock mode
-    if not config["mock_mode"]:
-        dbt_path = config["dbt_path"]
+    dbt_path = config["dbt_path"]
+    
+    # If dbt_path is a full path, check if it exists
+    if os.path.isabs(dbt_path) and not os.path.isfile(dbt_path):
+        logger.warning(f"dbt executable not found at {dbt_path}")
+        return False
         
-        # If dbt_path is a full path, check if it exists
-        if os.path.isabs(dbt_path) and not os.path.isfile(dbt_path):
-            logger.warning(f"dbt executable not found at {dbt_path}")
-            return False
-            
     return True
 
 

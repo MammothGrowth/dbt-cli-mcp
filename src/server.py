@@ -14,11 +14,11 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_cli_mcp.config import initialize as initialize_config, get_config
-from dbt_cli_mcp.tools import register_tools
+from src.config import initialize as initialize_config, get_config
+from src.tools import register_tools
 
 # Initialize logger
-logger = logging.getLogger("dbt_cli_mcp")
+logger = logging.getLogger("src")
 
 
 def parse_args():
