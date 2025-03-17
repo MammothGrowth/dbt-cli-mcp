@@ -48,7 +48,21 @@ def test_dbt_ls():
                 print(f"Raw output keys: {list(output.keys())}")
             elif isinstance(output, list):
                 print(f"Raw output length: {len(output)}")
-                for i, item in enumerate(output[:3]):  # Print first 3 items
+                
+                # Filter out log messages before displaying
+                filtered_items = []
+                for item in output:
+                    if isinstance(item, dict) and "name" in item:
+                        name_value = item["name"]
+                        # Skip items with ANSI color codes or log messages
+                        if '\x1b[' in name_value or any(log_msg in name_value for log_msg in [
+                            "Running with dbt=", "Registered adapter:", "Found", "Starting"
+                        ]):
+                            continue
+                        filtered_items.append(item)
+                
+                print(f"Filtered output length: {len(filtered_items)}")
+                for i, item in enumerate(filtered_items[:3]):  # Print first 3 filtered items
                     print(f"Item {i} type: {type(item)}")
                     print(f"Item {i}: {str(item)[:100]}...")
             

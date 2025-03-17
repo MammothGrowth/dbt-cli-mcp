@@ -183,8 +183,7 @@ def register_tools(mcp: FastMCP) -> None:
         
         command.extend(["--output", output_format])
         
-        # The --no-print flag is not supported by dbt Cloud CLI
-        # We'll rely on proper parsing to handle any print macros
+        command.extend(["--quiet"])
         
         logger.info(f"Executing dbt command: dbt {' '.join(command)}")
         result = await execute_dbt_command(command, project_dir)
@@ -233,11 +232,19 @@ def register_tools(mcp: FastMCP) -> None:
                 for item in result["output"]:
                     name_value = item["name"]
                     
+                    # Skip log messages with ANSI color codes
+                    if '\x1b[' in name_value:
+                        logger.debug(f"Skipping log message with ANSI color codes: {name_value[:30]}...")
+                        continue
+                    
                     # Skip log messages that don't contain model data
                     if any(log_msg in name_value for log_msg in [
                         "Sending project", "Created invocation", "Waiting for",
-                        "Streaming", "Running dbt", "Invocation has finished"
+                        "Streaming", "Running dbt", "Invocation has finished",
+                        "Running with dbt=", "Registered adapter:", "Found",
+                        "Unable to do partial parsing", "Starting", "Completed"
                     ]):
+                        logger.debug(f"Skipping log message: {name_value[:30]}...")
                         continue
                     
                     # Extract model data from timestamped JSON lines
