@@ -23,6 +23,7 @@ dev = [
 
 [project.scripts]
 dbt-mcp = "src.cli:main_entry"
+dbt-mcp-server = "src.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
