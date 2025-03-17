@@ -543,23 +543,4 @@ def register_tools(mcp: FastMCP) -> None:
         
         return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
 
-    @mcp.tool()
-    async def configure_dbt_path(
-        path: str = Field(
-            description="Absolute path to the dbt executable"
-        )
-    ) -> str:
-        """Configure the path to the dbt executable. An AI agent should use this tool when it needs to set up or change the path to the dbt executable. This is important during initial setup or when switching between different dbt installations or environments.
-        
-        Returns:
-            Confirmation message
-        """
-        import os
-        
-        if not os.path.isfile(path):
-            return f"Error: File not found at {path}"
-        
-        set_config("dbt_path", path)
-        return f"dbt path configured to: {path}"
-
     logger.info("Registered all dbt tools")
