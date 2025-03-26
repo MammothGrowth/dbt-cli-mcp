@@ -57,9 +57,8 @@ def test_dbt_build():
             if file_path.exists():
                 found_files.append(file_path)
         
-        if not found_files:
-            print("❌ No target files found")
-            return False
+        # Use assertion instead of returning True/False
+        assert found_files, "No target files found"
         
         print(f"✅ Found {len(found_files)} target files")
         for file_path in found_files[:3]:  # Print first 3 files for brevity
@@ -85,21 +84,21 @@ def test_dbt_build():
             
             found_errors = [indicator for indicator in error_indicators if indicator in build_result]
             
-            if found_errors:
-                print(f"❌ Found error indicators: {found_errors}")
-                print(f"Build output: {build_result}")
-                return False
+            # Use assertion instead of returning False
+            assert not found_errors, f"Found error indicators: {found_errors}\nBuild output: {build_result}"
         
         print(f"✅ Found success indicators: {found_indicators}" if found_indicators else "✅ No errors found")
         print("✅ dbt_build integration test passed!")
-        return True
     
     except Exception as e:
         print(f"❌ Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 if __name__ == "__main__":
-    success = test_dbt_build()
-    sys.exit(0 if success else 1)
+    try:
+        test_dbt_build()
+        sys.exit(0)
+    except Exception:
+        sys.exit(1)

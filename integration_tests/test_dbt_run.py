@@ -54,19 +54,21 @@ def test_dbt_run():
         ]
         files_exist = verify_files_exist(target_files)
         
-        if not files_exist:
-            print("❌ File verification failed")
-            return False
+        # Use assertion instead of returning True/False
+        assert files_exist, "File verification failed"
         
         print("✅ dbt_run integration test passed!")
-        return True
     
     except Exception as e:
         print(f"❌ Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        # Re-raise the exception to fail the test
+        raise
 
 if __name__ == "__main__":
-    success = test_dbt_run()
-    sys.exit(0 if success else 1)
+    try:
+        test_dbt_run()
+        sys.exit(0)
+    except Exception:
+        sys.exit(1)

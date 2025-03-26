@@ -38,21 +38,21 @@ def test_dbt_debug():
         # We don't need all indicators to be present, just check if any of them are
         found_indicators = [indicator for indicator in success_indicators if indicator in debug_result]
         
-        if not found_indicators:
-            print("❌ No success indicators found in debug output")
-            print(f"Debug output: {debug_result}")
-            return False
+        # Use assertion instead of returning True/False
+        assert found_indicators, f"No success indicators found in debug output\nDebug output: {debug_result}"
         
         print(f"✅ Found success indicators: {found_indicators}")
         print("✅ dbt_debug integration test passed!")
-        return True
     
     except Exception as e:
         print(f"❌ Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 if __name__ == "__main__":
-    success = test_dbt_debug()
-    sys.exit(0 if success else 1)
+    try:
+        test_dbt_debug()
+        sys.exit(0)
+    except Exception:
+        sys.exit(1)

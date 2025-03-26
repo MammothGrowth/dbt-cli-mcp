@@ -39,9 +39,7 @@ def test_dbt_seed():
         ]
         
         # Verify the seed files exist
-        if not verify_files_exist(seed_files):
-            print("❌ Seed files not found in project")
-            return False
+        assert verify_files_exist(seed_files), "Verification failed"
         
         print("✅ Seed files found in project")
         
@@ -94,15 +92,17 @@ def test_dbt_seed():
                 return False
         
         print(f"✅ Found success indicators: {found_indicators}" if found_indicators else "✅ No errors found")
-        print("✅ dbt_seed integration test passed!")
-        return True
+        print("✅ Test passed!")
     
     except Exception as e:
         print(f"❌ Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 if __name__ == "__main__":
-    success = test_dbt_seed()
-    sys.exit(0 if success else 1)
+    try:
+        test_dbt_seed()
+        sys.exit(0)
+    except Exception:
+        sys.exit(1)

@@ -111,8 +111,7 @@ def test_dbt_ls():
                 return False
             
             print(f"✅ Found all expected models: {expected_models}")
-            print("✅ dbt_ls integration test passed!")
-            return True
+            print("✅ Test passed!")
             
         except json.JSONDecodeError as e:
             print(f"❌ Failed to parse JSON result: {ls_result}")
@@ -123,7 +122,7 @@ def test_dbt_ls():
         print(f"❌ Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 def test_dbt_ls_with_profiles_dir():
     """Test the dbt_ls tool with explicit profiles_dir parameter"""
     print("Testing dbt_ls tool with explicit profiles_dir parameter...")
@@ -194,8 +193,7 @@ def test_dbt_ls_with_profiles_dir():
                 return False
             
             print(f"✅ Found all expected models: {expected_models}")
-            print("✅ dbt_ls with profiles_dir integration test passed!")
-            return True
+            print("✅ Test passed!")
             
         except json.JSONDecodeError as e:
             print(f"❌ Failed to parse JSON result: {ls_result}")
@@ -206,9 +204,12 @@ def test_dbt_ls_with_profiles_dir():
         print(f"❌ Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise
 
 if __name__ == "__main__":
-    success = test_dbt_ls() and test_dbt_ls_with_profiles_dir()
-    sys.exit(0 if success else 1)
+    try:
+        test_dbt_ls()
+        sys.exit(0)
+    except Exception:
+        sys.exit(1)
     sys.exit(0 if success else 1)
