@@ -12,7 +12,7 @@ from src.command import (
     load_environment,
     execute_dbt_command,
     parse_dbt_list_output,
-    load_mock_response
+    process_command_result
 )
 
 
@@ -145,18 +145,71 @@ def test_parse_dbt_list_output():
     assert {"name": "model2"} in result
 
 
+# Test for load_mock_response removed as it's not part of the command module
+
+
 @pytest.mark.asyncio
-async def test_load_mock_response():
-    """Test loading mock response."""
-    # Create a temporary mock response file
-    mock_dir = Path(__file__).parent / "mock_responses"
+async def test_process_command_result_success():
+    """Test processing a successful command result."""
+    # Test with string output
+    result = {
+        "success": True,
+        "output": "Command executed successfully",
+        "error": None,
+        "returncode": 0
+    }
     
-    # Test with existing mock response
-    response = await load_mock_response("run")
-    assert response is not None
-    assert "success" in response
-    assert response["success"] is True
+    output = await process_command_result(result, "test")
+    assert output == "Command executed successfully"
     
-    # Test with non-existent mock response
-    response = await load_mock_response("non_existent")
-    assert response is None
+    # Test with dict output
+    result = {
+        "success": True,
+        "output": {"key": "value"},
+        "error": None,
+        "returncode": 0
+    }
+    
+    output = await process_command_result(result, "test")
+    assert output == '{"key": "value"}'
+    
+    # Test with custom formatter
+    def custom_formatter(output):
+        return f"Formatted: {output}"
+    
+    output = await process_command_result(result, "test", output_formatter=custom_formatter)
+    assert output == "Formatted: {'key': 'value'}"
+
+
+@pytest.mark.asyncio
+async def test_process_command_result_error():
+    """Test processing a failed command result."""
+    # Test with error but no output
+    result = {
+        "success": False,
+        "output": None,
+        "error": "Error message",
+        "returncode": 1
+    }
+    
+    output = await process_command_result(result, "test")
+    assert "Error executing dbt test: Error message" in output
+    
+    # Test with error and output
+    result = {
+        "success": False,
+        "output": "Command output with error details",
+        "error": "Error message",
+        "returncode": 1
+    }
+    
+    output = await process_command_result(result, "test")
+    assert "Error executing dbt test: Error message" in output
+    assert "Output: Command output with error details" in output
+    
+    # Test with debug info
+    output = await process_command_result(result, "test", include_debug_info=True)
+    assert "Error executing dbt test: Error message" in output
+    assert "Output: Command output with error details" in output
+    assert "Command details:" in output
+    assert "Return code: 1" in output
