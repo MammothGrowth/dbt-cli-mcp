@@ -11,7 +11,7 @@ import subprocess
 import asyncio
 import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Callable
 
 import dotenv
 
@@ -300,3 +300,44 @@ def parse_dbt_list_output(output: Union[str, Dict, List]) -> List[Dict[str, Any]
     # Fallback: return empty list
     logger.warning("Could not parse dbt list output in any recognized format")
     return []
+
+
+async def process_command_result(
+    result: Dict[str, Any],
+    command_name: str,
+    output_formatter: Optional[Callable] = None,
+    include_debug_info: bool = False
+) -> str:
+    """
+    Process the result of a dbt command execution.
+    
+    Args:
+        result: The result dictionary from execute_dbt_command
+        command_name: The name of the dbt command (e.g. "run", "test")
+        output_formatter: Optional function to format successful output
+        include_debug_info: Whether to include additional debug info in error messages
+        
+    Returns:
+        Formatted output or error message
+    """
+    if not result["success"]:
+        error_msg = f"Error executing dbt {command_name}: {result['error']}"
+        
+        # Always include command output in error messages
+        if "output" in result and result["output"]:
+            error_msg += f"\nOutput: {result['output']}"
+        
+        # Include additional debug info if requested
+        if include_debug_info:
+            error_msg += f"\n\nCommand details:"
+            error_msg += f"\nReturn code: {result.get('returncode', 'Unknown')}"
+            # Add any other debug info that might be useful
+        
+        return error_msg
+    
+    # Format successful output
+    if output_formatter:
+        return output_formatter(result["output"])
+    
+    # Default output formatting
+    return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])

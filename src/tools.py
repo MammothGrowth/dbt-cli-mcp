@@ -9,12 +9,14 @@ import logging
 import json
 import re
 from typing import Optional, Dict, Any, List
+from functools import partial
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from src.command import execute_dbt_command, parse_dbt_list_output
+from src.command import execute_dbt_command, parse_dbt_list_output, process_command_result
 from src.config import get_config, set_config
+from src.formatters import default_formatter, ls_formatter, show_formatter
 
 # Logger for this module
 logger = logging.getLogger(__name__)
@@ -79,13 +81,8 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt run: {result['error']}"
-            if 'output' in result and result['output']:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="run")
 
     @mcp.tool()
     async def dbt_test(
@@ -131,13 +128,8 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt test: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="test")
 
     @mcp.tool()
     async def dbt_ls(
@@ -201,135 +193,15 @@ def register_tools(mcp: FastMCP) -> None:
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         logger.info(f"dbt command result: success={result['success']}, returncode={result.get('returncode')}")
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt ls: {result['error']}"
-            # Include the output and additional debug info in the error message
-            if "output" in result and result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            
-            # Add debug info about command execution
-            error_msg += f"\n\nCommand details:"
-            error_msg += f"\nProject directory: {project_dir}"
-            error_msg += f"\nOutput format: {output_format}"
-            error_msg += f"\nModels: {models or 'None'}"
-            error_msg += f"\nReturn code: {result.get('returncode', 'Unknown')}"
-            
-            logger.error(error_msg)
-            return error_msg
+        # Use the centralized result processor with ls_formatter
+        formatter = partial(ls_formatter, output_format=output_format)
         
-        # Log raw output for debugging
-        logger.info(f"Raw output type: {type(result['output'])}")
-        if isinstance(result['output'], str):
-            logger.info(f"Raw output length: {len(result['output'])}")
-            logger.info(f"Raw output preview: {result['output'][:100]}...")
-        elif isinstance(result['output'], (list, dict)):
-            logger.info(f"Raw output structure: {type(result['output'])}, length: {len(result['output'] if isinstance(result['output'], list) else result['output'].keys())}")
-        
-        # For json format, parse the output and return as JSON
-        if output_format == "json":
-            # Return raw output if it's an empty string or None
-            if not result["output"]:
-                logger.warning("dbt ls returned empty output")
-                return "[]"
-
-            logger.info("Parsing dbt ls output as JSON")
-            
-            # Special handling for dbt Cloud CLI output
-            if isinstance(result["output"], list) and all(isinstance(item, dict) and "name" in item for item in result["output"]):
-                logger.info("Detected dbt Cloud CLI output format")
-                
-                # Extract all JSON objects from log lines with timestamps
-                extracted_models = []
-                
-                for item in result["output"]:
-                    name_value = item["name"]
-                    
-                    # Skip log messages with ANSI color codes
-                    if '\x1b[' in name_value:
-                        logger.debug(f"Skipping log message with ANSI color codes: {name_value[:30]}...")
-                        continue
-                    
-                    # Skip log messages that don't contain model data
-                    if any(log_msg in name_value for log_msg in [
-                        "Sending project", "Created invocation", "Waiting for",
-                        "Streaming", "Running dbt", "Invocation has finished",
-                        "Running with dbt=", "Registered adapter:", "Found",
-                        "Unable to do partial parsing", "Starting", "Completed"
-                    ]):
-                        logger.debug(f"Skipping log message: {name_value[:30]}...")
-                        continue
-                    
-                    # Check if the name value is a JSON string
-                    if name_value.startswith('{') and '"name":' in name_value and '"resource_type":' in name_value:
-                        try:
-                            # Parse the JSON string directly
-                            model_data = json.loads(name_value)
-                            if isinstance(model_data, dict) and "name" in model_data and "resource_type" in model_data:
-                                extracted_models.append(model_data)
-                                continue
-                        except json.JSONDecodeError:
-                            logger.debug(f"Failed to parse JSON from: {name_value[:30]}...")
-                    
-                    # Extract model data from timestamped JSON lines
-                    timestamp_prefix_match = re.match(r'^(\d\d:\d\d:\d\d)\s+(.+)$', name_value)
-                    if timestamp_prefix_match:
-                        json_string = timestamp_prefix_match.group(2)
-                        try:
-                            model_data = json.loads(json_string)
-                            if isinstance(model_data, dict) and "name" in model_data and "resource_type" in model_data:
-                                extracted_models.append(model_data)
-                        except json.JSONDecodeError:
-                            logger.debug(f"Failed to parse JSON from: {json_string[:30]}...")
-                            continue
-                
-                if extracted_models:
-                    logger.info(f"Successfully extracted {len(extracted_models)} models from dbt Cloud CLI output")
-                    
-                    # Sort the results by resource_type and name for better readability
-                    extracted_models.sort(key=lambda x: (x.get("resource_type", ""), x.get("name", "")))
-                    
-                    json_output = json.dumps(extracted_models, indent=2)
-                    logger.info(f"Final JSON output length: {len(json_output)}")
-                    return json_output
-                else:
-                    logger.warning("No valid model data found in dbt Cloud CLI output")
-                    return "[]"
-            else:
-                # Standard parsing for regular dbt CLI output
-                parsed = parse_dbt_list_output(result["output"])
-                
-                # Log parsed output for debugging
-                logger.info(f"Parsed output type: {type(parsed)}, length: {len(parsed)}")
-                
-                # Return empty array if parsing failed
-                if not parsed:
-                    logger.warning("Failed to parse dbt ls output")
-                    return "[]"
-                
-                # Filter out any empty or non-model entries
-                filtered_parsed = [item for item in parsed if isinstance(item, dict) and
-                                  item.get("resource_type") in ["model", "seed", "test", "source", "snapshot"]]
-                
-                # Log filtered output for debugging
-                logger.info(f"Filtered output length: {len(filtered_parsed)}")
-                
-                # Sort the results by resource_type and name for better readability
-                filtered_parsed.sort(key=lambda x: (x.get("resource_type", ""), x.get("name", "")))
-                
-                # Return full parsed output if filtering removed everything
-                if not filtered_parsed and parsed:
-                    logger.warning("Filtering removed all items, returning original parsed output")
-                    json_output = json.dumps(parsed, indent=2)
-                    logger.info(f"Final JSON output length: {len(json_output)}")
-                    return json_output
-                
-                json_output = json.dumps(filtered_parsed, indent=2)
-                logger.info(f"Final JSON output length: {len(json_output)}")
-                return json_output
-        
-        # For name, path, or selector formats, return the raw output as string
-        logger.info(f"Returning raw output as string for format: {output_format}")
-        return str(result["output"])
+        return await process_command_result(
+            result,
+            command_name="ls",
+            output_formatter=formatter,
+            include_debug_info=True  # Include extra debug info for this command
+        )
 
     @mcp.tool()
     async def dbt_compile(
@@ -375,13 +247,8 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt compile: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="compile")
 
     @mcp.tool()
     async def dbt_debug(
@@ -406,13 +273,8 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt debug: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="debug")
 
     @mcp.tool()
     async def dbt_deps(
@@ -437,13 +299,8 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt deps: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="deps")
 
     @mcp.tool()
     async def dbt_seed(
@@ -482,18 +339,13 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt seed: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="seed")
 
     @mcp.tool()
     async def dbt_show(
         models: str = Field(
-            description="Specific model to show"
+            description="Specific model to show. For model references, use standard dbt syntax like 'model_name'. For inline SQL, use the format 'select * from {{ ref(\"model_name\") }}' to reference other models."
         ),
         project_dir: str = Field(
             default=".",
@@ -506,30 +358,43 @@ def register_tools(mcp: FastMCP) -> None:
         limit: Optional[int] = Field(
             default=None,
             description="Limit the number of rows returned"
+        ),
+        output: Optional[str] = Field(
+            default="json",
+            description="Output format (json, table, etc.)"
         )
     ) -> str:
         """Preview the results of a model. An AI agent should use this tool when it needs to preview data from a specific model without materializing it. This helps inspect transformation results, debug issues, or demonstrate how data looks after processing without modifying the target database.
         
         Returns:
-            Output from the dbt show command as text (this command does not support JSON output format)
+            Output from the dbt show command, defaulting to JSON format if not specified
         """
+        # Check if models parameter contains inline SQL
+        is_inline_sql = models.strip().lower().startswith('select ')
+        
+        # If it's inline SQL, strip out any LIMIT clause as we'll handle it with the --limit parameter
+        if is_inline_sql:
+            # Use regex to remove LIMIT clause from the SQL
+            models = re.sub(r'\bLIMIT\s+\d+\b', '', models, flags=re.IGNORECASE)
+        
         command = ["show", "-s", models]
         
         if limit:
             command.extend(["--limit", str(limit)])
-            
+        
+        # Note: We don't pass the output parameter to the dbt CLI command
+        # as it's handled by the MCP server's format parameter
         # The --no-print flag is not supported by dbt Cloud CLI
         # We'll rely on proper parsing to handle any print macros
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt show: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor with show_formatter
+        return await process_command_result(
+            result,
+            command_name="show",
+            output_formatter=show_formatter
+        )
 
     @mcp.tool()
     async def dbt_build(
@@ -582,12 +447,7 @@ def register_tools(mcp: FastMCP) -> None:
         
         result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        if not result["success"]:
-            error_msg = f"Error executing dbt build: {result['error']}"
-            if result["output"]:
-                error_msg += f"\nOutput: {result['output']}"
-            return error_msg
-        
-        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+        # Use the centralized result processor
+        return await process_command_result(result, command_name="build")
 
     logger.info("Registered all dbt tools")
