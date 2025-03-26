@@ -372,28 +372,81 @@ def register_tools(mcp: FastMCP) -> None:
         # Check if models parameter contains inline SQL
         is_inline_sql = models.strip().lower().startswith('select ')
         
+        logger.info(f"dbt_show called with models={models}, is_inline_sql={is_inline_sql}")
+        
         # If it's inline SQL, strip out any LIMIT clause as we'll handle it with the --limit parameter
         if is_inline_sql:
             # Use regex to remove LIMIT clause from the SQL
+            original_models = models
             models = re.sub(r'\bLIMIT\s+\d+\b', '', models, flags=re.IGNORECASE)
+            logger.info(f"Stripped LIMIT clause: {original_models} -> {models}")
+            
+            # For inline SQL, use the --inline flag with the SQL as its value
+            command = ["show", f"--inline={models}", "--output", output or "json"]
+            
+            if limit:
+                command.extend(["--limit", str(limit)])
+            
+            logger.info(f"Executing dbt command: {' '.join(command)}")
+            # Don't use --quiet for inline SQL to ensure we get error messages
+            result = await execute_dbt_command(command, project_dir, profiles_dir)
+            
+            logger.info(f"Command result: success={result['success']}, returncode={result.get('returncode')}")
+            if isinstance(result["output"], str):
+                logger.info(f"Output (first 100 chars): {result['output'][:100]}")
+            elif isinstance(result["output"], (dict, list)):
+                logger.info(f"Output structure: {json.dumps(result['output'])[:100]}")
+            
+            # Check for specific error patterns in the output
+            if not result["success"] or (
+                isinstance(result["output"], str) and
+                any(err in result["output"].lower() for err in ["error", "failed", "syntax", "exception"])
+            ):
+                logger.warning(f"Error detected in output: {result['output'][:200]}")
+                error_result = {
+                    "success": False,
+                    "output": f"Error executing inline SQL\n{result['output']}",
+                    "error": result["error"],
+                    "returncode": result["returncode"]
+                }
+                return await process_command_result(
+                    error_result,
+                    command_name="show",
+                    include_debug_info=True
+                )
+        else:
+            # For regular model references, check if the model exists first
+            check_command = ["ls", "-s", models]
+            check_result = await execute_dbt_command(check_command, project_dir, profiles_dir)
+            
+            # If the model doesn't exist, return the error message
+            if not check_result["success"] or "does not match any enabled nodes" in str(check_result["output"]):
+                error_result = {
+                    "success": False,
+                    "output": f"Model does not exist or is not enabled\n{check_result['output']}",
+                    "error": check_result["error"],
+                    "returncode": check_result["returncode"]
+                }
+                return await process_command_result(
+                    error_result,
+                    command_name="show",
+                    include_debug_info=True
+                )
+            
+            # If the model exists, run the show command with --quiet and --output json
+            command = ["show", "-s", models, "--quiet", "--output", output or "json"]
+            
+            if limit:
+                command.extend(["--limit", str(limit)])
+            
+            result = await execute_dbt_command(command, project_dir, profiles_dir)
         
-        command = ["show", "-s", models]
-        
-        if limit:
-            command.extend(["--limit", str(limit)])
-        
-        # Note: We don't pass the output parameter to the dbt CLI command
-        # as it's handled by the MCP server's format parameter
-        # The --no-print flag is not supported by dbt Cloud CLI
-        # We'll rely on proper parsing to handle any print macros
-        
-        result = await execute_dbt_command(command, project_dir, profiles_dir)
-        
-        # Use the centralized result processor with show_formatter
+        # Use the centralized result processor
         return await process_command_result(
             result,
             command_name="show",
-            output_formatter=show_formatter
+            output_formatter=show_formatter,
+            include_debug_info=True
         )
 
     @mcp.tool()

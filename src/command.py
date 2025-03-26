@@ -121,8 +121,21 @@ async def execute_dbt_command(
         stderr = stderr_bytes.decode('utf-8') if stderr_bytes else ""
         success = process.returncode == 0
         
-        # Try to parse JSON from stdout if available
-        output = stdout
+        # Special case for 'show' command: detect "does not match any enabled nodes" as an error
+        # Only check if --quiet is not in the command, as --quiet suppresses this output
+        if success and command[0] == "show" and "--quiet" not in command and "does not match any enabled nodes" in stdout:
+            success = False
+            
+        # For commands that failed, combine stdout and stderr for comprehensive output
+        if not success and stderr:
+            # If there's output from both stdout and stderr, combine them
+            if stdout:
+                output = f"{stdout}\n\nSTDERR:\n{stderr}"
+            else:
+                output = stderr
+        else:
+            # For successful commands, use stdout
+            output = stdout
         
         # Check if this is dbt Cloud CLI output format with embedded JSON in log lines
         if stdout.strip().startswith('[') and '"name":' in stdout:
@@ -320,24 +333,50 @@ async def process_command_result(
     Returns:
         Formatted output or error message
     """
+    logger.info(f"Processing command result for {command_name}")
+    logger.info(f"Result success: {result['success']}, returncode: {result.get('returncode')}")
+    
+    # Log the output type and a sample
+    if "output" in result:
+        if isinstance(result["output"], str):
+            logger.info(f"Output type: str, first 100 chars: {result['output'][:100]}")
+        elif isinstance(result["output"], (dict, list)):
+            logger.info(f"Output type: {type(result['output'])}, sample: {json.dumps(result['output'])[:100]}")
+        else:
+            logger.info(f"Output type: {type(result['output'])}")
+    
+    # For errors, simply return the raw command output if available
     if not result["success"]:
-        error_msg = f"Error executing dbt {command_name}: {result['error']}"
+        logger.warning(f"Command {command_name} failed with returncode {result.get('returncode')}")
         
-        # Always include command output in error messages
+        # If we have command output, return it directly
         if "output" in result and result["output"]:
-            error_msg += f"\nOutput: {result['output']}"
+            logger.info(f"Returning error output: {str(result['output'])[:100]}...")
+            return str(result["output"])
         
-        # Include additional debug info if requested
-        if include_debug_info:
-            error_msg += f"\n\nCommand details:"
-            error_msg += f"\nReturn code: {result.get('returncode', 'Unknown')}"
-            # Add any other debug info that might be useful
-        
-        return error_msg
+        # If no command output, return the error message
+        if result["error"]:
+            logger.info(f"Returning error message: {str(result['error'])[:100]}...")
+            return str(result["error"])
+            
+        # If neither output nor error is available, return a generic message
+        logger.info("No output or error available, returning generic message")
+        return f"Command failed with exit code {result.get('returncode', 'unknown')}"
     
     # Format successful output
     if output_formatter:
-        return output_formatter(result["output"])
+        logger.info(f"Using custom formatter for {command_name}")
+        formatted_result = output_formatter(result["output"])
+        logger.info(f"Formatted result type: {type(formatted_result)}, first 100 chars: {str(formatted_result)[:100]}")
+        return formatted_result
     
     # Default output formatting
-    return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+    logger.info(f"Using default formatting for {command_name}")
+    if isinstance(result["output"], (dict, list)):
+        json_result = json.dumps(result["output"])
+        logger.info(f"JSON result length: {len(json_result)}, first 100 chars: {json_result[:100]}")
+        return json_result
+    else:
+        str_result = str(result["output"])
+        logger.info(f"String result length: {len(str_result)}, first 100 chars: {str_result[:100]}")
+        return str_result

@@ -104,6 +104,7 @@ def parse_args() -> argparse.Namespace:
     show_parser.add_argument("--project-dir", help="Directory containing the dbt project", default=".")
     show_parser.add_argument("--profiles-dir", help="Directory containing the profiles.yml file (defaults to project-dir if not specified)")
     show_parser.add_argument("--limit", help="Limit the number of rows returned", type=int)
+    show_parser.add_argument("--output-format", help="Output format (json, table, etc.)", default="json")
     
     # dbt_build command
     build_parser = subparsers.add_parser("build", help="Run build command")
@@ -293,24 +294,77 @@ async def run_dbt_seed(selector=None, exclude=None, project_dir=".", profiles_di
         return error_msg
     
     return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
-
-async def run_dbt_show(models, project_dir=".", profiles_dir=None, limit=None):
+async def run_dbt_show(models, project_dir=".", profiles_dir=None, limit=None, output_format="json"):
     """Preview model results."""
-    command = ["show", "-s", models]
-    
-    if limit:
-        command.extend(["--limit", str(limit)])
+    # For successful cases, use --quiet and --output json for clean JSON output
+    # For error cases, don't use --quiet to get the full error message
     
     from src.command import execute_dbt_command
-    result = await execute_dbt_command(command, project_dir, profiles_dir)
+    import re
     
-    if not result["success"]:
-        error_msg = f"Error executing dbt show: {result['error']}"
-        if result["output"]:
-            error_msg += f"\nOutput: {result['output']}"
-        return error_msg
+    # Check if models parameter contains inline SQL
+    is_inline_sql = models.strip().lower().startswith('select ')
     
-    return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+    # If it's inline SQL, strip out any LIMIT clause as we'll handle it with the --limit parameter
+    if is_inline_sql:
+        # Use regex to remove LIMIT clause from the SQL
+        models = re.sub(r'\bLIMIT\s+\d+\b', '', models, flags=re.IGNORECASE)
+        
+        # For inline SQL, use the --inline flag with the SQL as its value
+        command = ["show", f"--inline={models}", "--output", output_format]
+        
+        if limit:
+            command.extend(["--limit", str(limit)])
+        
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
+        
+        # Check for specific error patterns in the output
+        if not result["success"] or (
+            isinstance(result["output"], str) and
+            any(err in result["output"].lower() for err in ["error", "failed", "syntax", "exception"])
+        ):
+            error_msg = "Error executing dbt show with inline SQL"
+            if result["output"]:
+                return error_msg + "\n" + str(result["output"])
+            elif result["error"]:
+                return error_msg + "\n" + str(result["error"])
+            else:
+                return f"{error_msg}: Command failed with exit code {result.get('returncode', 'unknown')}"
+    else:
+        # For regular model references, check if the model exists first
+        check_command = ["ls", "-s", models]
+        check_result = await execute_dbt_command(check_command, project_dir, profiles_dir)
+        
+        # If the model doesn't exist, return the error message
+        if not check_result["success"] or "does not match any enabled nodes" in str(check_result["output"]):
+            error_msg = "Error executing dbt show: Model does not exist or is not enabled"
+            if check_result["output"]:
+                return error_msg + "\n" + str(check_result["output"])
+            elif check_result["error"]:
+                return error_msg + "\n" + str(check_result["error"])
+            else:
+                return error_msg
+        
+        # If the model exists, run the show command with --quiet and --output json
+        command = ["show", "-s", models, "--quiet", "--output", output_format]
+        
+        if limit:
+            command.extend(["--limit", str(limit)])
+        
+        result = await execute_dbt_command(command, project_dir, profiles_dir)
+    
+    # If the command succeeded, return the JSON output
+    if result["success"]:
+        return json.dumps(result["output"]) if isinstance(result["output"], (dict, list)) else str(result["output"])
+    
+    # If the command failed, return the error message
+    error_msg = "Error executing dbt show: "
+    if result["output"]:
+        return error_msg + str(result["output"])
+    elif result["error"]:
+        return error_msg + str(result["error"])
+    else:
+        return f"{error_msg}Command failed with exit code {result.get('returncode', 'unknown')}"
 
 async def run_dbt_build(models=None, selector=None, exclude=None, project_dir=".", profiles_dir=None, full_refresh=False):
     """Run build command."""
@@ -440,7 +494,8 @@ async def main_async() -> None:
             "models": args.models,
             "project_dir": args.project_dir,
             "profiles_dir": args.profiles_dir,
-            "limit": args.limit
+            "limit": args.limit,
+            "output_format": args.output_format
         }
     elif args.command == "build":
         func_args = {
@@ -460,7 +515,10 @@ async def main_async() -> None:
     result = await command_map[args.command](**{k: v for k, v in func_args.items() if v is not None})
     
     # Print the result
-    if args.format == "json":
+    # For dbt_show command errors, print raw output regardless of format
+    if args.command == "show" and isinstance(result, str) and result.startswith("Error executing dbt show:"):
+        print(result)
+    elif args.format == "json":
         try:
             # If result is already a JSON string, parse it first
             if isinstance(result, str) and (result.startswith("{") or result.startswith("[")):
