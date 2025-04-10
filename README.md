@@ -106,18 +106,36 @@ To use the server with an MCP client like Claude for Desktop, add it to the clie
 }
 ```
 
+## ⚠️ IMPORTANT: Absolute Project Path Required ⚠️
+
+When using any tool from this MCP server, you **MUST** specify the **FULL ABSOLUTE PATH** to your dbt project directory with the `project_dir` parameter. Relative paths will not work correctly.
+
+```json
+// ❌ INCORRECT - Will NOT work
+{
+  "project_dir": "."
+}
+
+// ✅ CORRECT - Will work
+{
+  "project_dir": "/Users/username/path/to/your/dbt/project"
+}
+```
+
+See the [complete dbt MCP usage guide](docs/dbt_mcp_guide.md) for more detailed instructions and examples.
+
 ## Available Tools
 
 The server provides the following MCP tools:
 
-- `dbt_run`: Run dbt models
-- `dbt_test`: Run dbt tests
-- `dbt_ls`: List dbt resources
-- `dbt_compile`: Compile dbt models
-- `dbt_debug`: Debug dbt project setup
-- `dbt_deps`: Install dbt package dependencies
-- `dbt_seed`: Load CSV files as seed data
-- `dbt_show`: Preview model results
+- `dbt_run`: Run dbt models (requires absolute `project_dir`)
+- `dbt_test`: Run dbt tests (requires absolute `project_dir`)
+- `dbt_ls`: List dbt resources (requires absolute `project_dir`)
+- `dbt_compile`: Compile dbt models (requires absolute `project_dir`)
+- `dbt_debug`: Debug dbt project setup (requires absolute `project_dir`)
+- `dbt_deps`: Install dbt package dependencies (requires absolute `project_dir`)
+- `dbt_seed`: Load CSV files as seed data (requires absolute `project_dir`)
+- `dbt_show`: Preview model results (requires absolute `project_dir`)
 <arguments>
 {
   "models": "customers",
@@ -132,7 +150,7 @@ The server provides the following MCP tools:
 
 When using the dbt MCP tools, it's important to understand how dbt profiles are handled:
 
-1. The `project_dir` parameter must point to a directory that contains both:
+1. The `project_dir` parameter **MUST** be an absolute path (e.g., `/Users/username/project` not `.`) that points to a directory containing both:
    - A valid `dbt_project.yml` file
    - A valid `profiles.yml` file with the profile referenced in the project
 
@@ -141,6 +159,7 @@ When using the dbt MCP tools, it's important to understand how dbt profiles are 
 3. If you encounter a "Could not find profile named 'X'" error, it means either:
    - The profiles.yml file is missing from the project directory
    - The profiles.yml file doesn't contain the profile referenced in dbt_project.yml
+   - You provided a relative path instead of an absolute path for `project_dir`
 
 Example of a valid profiles.yml file:
 

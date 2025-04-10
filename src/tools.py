@@ -46,7 +46,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -100,7 +100,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -151,7 +151,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -219,7 +219,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -254,7 +254,7 @@ def register_tools(mcp: FastMCP) -> None:
     async def dbt_debug(
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -280,7 +280,7 @@ def register_tools(mcp: FastMCP) -> None:
     async def dbt_deps(
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -314,7 +314,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -349,7 +349,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
@@ -482,7 +482,7 @@ def register_tools(mcp: FastMCP) -> None:
         ),
         project_dir: str = Field(
             default=".",
-            description="Directory containing the dbt project"
+            description="ABSOLUTE PATH to the directory containing the dbt project (e.g. '/Users/username/projects/dbt_project' not '.')"
         ),
         profiles_dir: Optional[str] = Field(
             default=None,
