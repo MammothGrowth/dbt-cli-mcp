@@ -50,3 +50,6 @@ Thumbs.db
 # Package manager
 uv.lock
 logs/dbt.log
+
+
+.roo*
