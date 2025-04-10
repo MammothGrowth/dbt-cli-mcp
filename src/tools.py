@@ -401,7 +401,8 @@ def register_tools(mcp: FastMCP) -> None:
             # For inline SQL, use the --inline flag with the SQL as its value
             command = ["show", f"--inline={models}", "--output", output or "json"]
             
-            if limit:
+            # Only add --limit if the inline type is WITH or SELECT (select_inline vs meta_inline)
+            if limit and sql_type in ["WITH", "SELECT"]:
                 command.extend(["--limit", str(limit)])
             
             logger.info(f"Executing dbt command: {' '.join(command)}")
