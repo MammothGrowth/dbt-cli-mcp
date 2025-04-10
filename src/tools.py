@@ -369,8 +369,25 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Output from the dbt show command, defaulting to JSON format if not specified
         """
-        # Check if models parameter contains inline SQL
-        is_inline_sql = models.strip().lower().startswith('select ')
+        # Use enhanced SQL detection
+        is_inline_sql, sql_type = is_inline_sql_query(models)
+        
+        # If it's SQL, check for security risks
+        if is_inline_sql:
+            has_risk, risk_reason = contains_mutation_risk(models)
+            if has_risk:
+                logger.warning(f"Security risk detected in SQL: {risk_reason}")
+                error_result = {
+                    "success": False,
+                    "output": f"Security validation failed: {risk_reason}. For security reasons, mutation operations are not allowed.",
+                    "error": "SecurityValidationError",
+                    "returncode": 1
+                }
+                return await process_command_result(
+                    error_result,
+                    command_name="show",
+                    include_debug_info=True
+                )
         
         logger.info(f"dbt_show called with models={models}, is_inline_sql={is_inline_sql}")
         
@@ -504,3 +521,208 @@ def register_tools(mcp: FastMCP) -> None:
         return await process_command_result(result, command_name="build")
 
     logger.info("Registered all dbt tools")
+
+
+def is_inline_sql_query(query: str) -> tuple[bool, Optional[str]]:
+    """
+    Determine if the given string is an inline SQL query or a model reference.
+    
+    This function uses multiple heuristics to determine if a string is likely
+    an SQL query rather than a model name:
+    1. Checks for common SQL keywords at the beginning
+    2. Looks for SQL syntax patterns
+    3. Considers length and complexity
+    4. Handles SQL with comments (both single-line and multi-line)
+    5. Recognizes dbt templating syntax
+    
+    Args:
+        query: The string to check
+        
+    Returns:
+        A tuple of (is_sql, sql_type) where:
+        - is_sql: True if the input is SQL, False otherwise
+        - sql_type: The type of SQL statement if is_sql is True, None otherwise
+          (e.g., "SELECT", "WITH", "SHOW", etc.)
+    """
+    # Normalize the query by trimming whitespace
+    normalized_query = query.strip()
+    
+    # Skip empty queries
+    if not normalized_query:
+        return False, None
+    
+    # Check if the query contains SQL comments
+    has_single_line_comment = '--' in normalized_query
+    has_multi_line_comment = '/*' in normalized_query and '*/' in normalized_query
+    
+    # If the query only contains comments, it's still SQL
+    if has_single_line_comment or has_multi_line_comment:
+        # Check if it's only comments by removing them and seeing if anything remains
+        # Remove /* */ style comments
+        sql_no_comments = re.sub(r'/\*.*?\*/', ' ', normalized_query, flags=re.DOTALL)
+        # Remove -- style comments
+        sql_no_comments = re.sub(r'--.*?$', ' ', sql_no_comments, flags=re.MULTILINE)
+        # Normalize whitespace
+        sql_no_comments = ' '.join(sql_no_comments.split()).strip()
+        
+        if not sql_no_comments:
+            # If nothing remains after removing comments, it's only comments
+            return True, "COMMENT"
+    
+    # Convert to lowercase for case-insensitive matching
+    normalized_query_lower = normalized_query.lower()
+    
+    # Check for SQL comments at the beginning and skip them for detection
+    # This handles both single-line (--) and multi-line (/* */) comments
+    comment_pattern = r'^(\s*(--[^\n]*\n|\s*/\*.*?\*/\s*)*\s*)'
+    match = re.match(comment_pattern, normalized_query_lower, re.DOTALL)
+    if match:
+        # Skip past the comments for keyword detection
+        start_pos = match.end()
+        if start_pos >= len(normalized_query_lower):
+            # If the query is only comments, it's still SQL
+            return True, "COMMENT"
+        normalized_query_lower = normalized_query_lower[start_pos:]
+    
+    # Common SQL statement starting keywords
+    sql_starters = {
+        'select': 'SELECT',
+        'with': 'WITH',
+        'show': 'SHOW',
+        'describe': 'DESCRIBE',
+        'explain': 'EXPLAIN',
+        'analyze': 'ANALYZE',
+        'use': 'USE',
+        'set': 'SET'
+    }
+    
+    # Check if the query starts with a common SQL keyword
+    for keyword, sql_type in sql_starters.items():
+        if normalized_query_lower.startswith(keyword + ' '):
+            return True, sql_type
+    
+    # Check for more complex patterns like CTEs
+    # WITH clause followed by identifier and AS
+    cte_pattern = r'^\s*with\s+[a-z0-9_]+\s+as\s*\('
+    if re.search(cte_pattern, normalized_query_lower, re.IGNORECASE):
+        return True, "WITH"
+    
+    # Check for Jinja templating with SQL inside
+    jinja_sql_pattern = r'{{\s*sql\s*}}'
+    if re.search(jinja_sql_pattern, normalized_query_lower):
+        return True, "JINJA"
+    
+    # Check for dbt ref or source macros which indicate SQL
+    dbt_macro_pattern = r'{{\s*(ref|source)\s*\(\s*[\'"]'
+    if re.search(dbt_macro_pattern, normalized_query_lower):
+        return True, "DBT_MACRO"
+    
+    # If the query contains certain SQL syntax elements, it's likely SQL
+    sql_syntax_elements = [
+        r'\bfrom\s+[a-z0-9_]+',  # FROM clause
+        r'\bjoin\s+[a-z0-9_]+',   # JOIN clause
+        r'\bwhere\s+',            # WHERE clause
+        r'\bgroup\s+by\s+',       # GROUP BY clause
+        r'\border\s+by\s+',       # ORDER BY clause
+        r'\bhaving\s+',           # HAVING clause
+        r'\bunion\s+',            # UNION operator
+        r'\bcase\s+when\s+'       # CASE expression
+    ]
+    
+    for pattern in sql_syntax_elements:
+        if re.search(pattern, normalized_query_lower, re.IGNORECASE):
+            return True, "SQL_SYNTAX"
+    
+    # If the query is long and contains spaces, it's more likely to be SQL than a model name
+    if len(normalized_query_lower) > 30 and ' ' in normalized_query_lower:
+        return True, "COMPLEX"
+    
+    # If none of the above conditions are met, it's likely a model name
+    return False, None
+
+
+def contains_mutation_risk(sql: str) -> tuple[bool, str]:
+    """
+    Check if the SQL query contains potentially dangerous operations.
+    
+    This function scans SQL for operations that could modify or delete data,
+    which should be prohibited in a read-only context like dbt show.
+    
+    Args:
+        sql: The SQL query to check
+        
+    Returns:
+        A tuple of (has_risk, reason) where:
+        - has_risk: True if the query contains risky operations, False otherwise
+        - reason: A description of the risk if has_risk is True, empty string otherwise
+    """
+    # Normalize the SQL by removing comments and extra whitespace
+    # This helps prevent comment-based evasion techniques
+    
+    # Remove /* */ style comments
+    sql_no_comments = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
+    
+    # Remove -- style comments
+    sql_no_comments = re.sub(r'--.*?$', ' ', sql_no_comments, flags=re.MULTILINE)
+    
+    # Normalize whitespace
+    normalized_sql = ' '.join(sql_no_comments.split()).lower()
+    
+    # Check for multiple SQL statements (potential SQL injection)
+    # This needs to be checked first to ensure proper error message
+    if ';' in normalized_sql:
+        # Check if there's actual SQL after the semicolon
+        statements = normalized_sql.split(';')
+        if len(statements) > 1:
+            for stmt in statements[1:]:
+                if stmt.strip():
+                    return True, "Multiple SQL statements detected - potential SQL injection risk"
+    
+    # Dangerous SQL operations patterns
+    dangerous_patterns = [
+        # Data modification operations
+        (r'\bdelete\s+from\b', "DELETE operation detected"),
+        (r'\btruncate\s+table\b', "TRUNCATE operation detected"),
+        (r'\bdrop\s+table\b', "DROP TABLE operation detected"),
+        (r'\bdrop\s+database\b', "DROP DATABASE operation detected"),
+        (r'\bdrop\s+schema\b', "DROP SCHEMA operation detected"),
+        (r'\balter\s+table\b', "ALTER TABLE operation detected"),
+        (r'\bcreate\s+table\b', "CREATE TABLE operation detected"),
+        (r'\bcreate\s+or\s+replace\b', "CREATE OR REPLACE operation detected"),
+        (r'\binsert\s+into\b', "INSERT operation detected"),
+        (r'\bupdate\s+.*?\bset\b', "UPDATE operation detected"),
+        (r'\bmerge\s+into\b', "MERGE operation detected"),
+        
+        # Database administration operations
+        (r'\bgrant\b', "GRANT operation detected"),
+        (r'\brevoke\b', "REVOKE operation detected"),
+        (r'\bcreate\s+user\b', "CREATE USER operation detected"),
+        (r'\balter\s+user\b', "ALTER USER operation detected"),
+        (r'\bdrop\s+user\b', "DROP USER operation detected"),
+        
+        # Execution of arbitrary code
+        (r'\bexec\b', "EXEC operation detected"),
+        (r'\bexecute\s+immediate\b', "EXECUTE IMMEDIATE detected"),
+        (r'\bcall\b', "CALL procedure detected")
+    ]
+    
+    # Check for each dangerous pattern
+    for pattern, reason in dangerous_patterns:
+        if re.search(pattern, normalized_sql, re.IGNORECASE):
+            return True, reason
+    
+    # Check for specific Snowflake commands that could be risky
+    snowflake_patterns = [
+        (r'\bcopy\s+into\b', "Snowflake COPY INTO operation detected"),
+        (r'\bunload\s+to\b', "Snowflake UNLOAD operation detected"),
+        (r'\bput\b', "Snowflake PUT operation detected"),
+        (r'\bremove\b', "Snowflake REMOVE operation detected"),
+        (r'\bmodify\b', "Snowflake MODIFY operation detected")
+    ]
+    
+    for pattern, reason in snowflake_patterns:
+        if re.search(pattern, normalized_sql, re.IGNORECASE):
+            return True, reason
+    
+    # No risks detected
+    return False, ""
