@@ -38,7 +38,7 @@ This MCP server provides the following tools for working with dbt:
 | `dbt_run` | Runs dbt models | `project_dir` (full path) |
 | `dbt_test` | Runs dbt tests | `project_dir` (full path) |
 | `dbt_compile` | Compiles dbt models | `project_dir` (full path) |
-| `dbt_ls` | Lists resources in a dbt project | `project_dir` (full path) |
+| `dbt_ls` | Lists resources in a dbt project (simplified output by default, full details with `verbose: true`) | `project_dir` (full path) |
 | `dbt_debug` | Validates project setup | `project_dir` (full path) |
 | `dbt_deps` | Installs package dependencies | `project_dir` (full path) |
 | `dbt_seed` | Loads seed data | `project_dir` (full path) |
@@ -58,6 +58,7 @@ This MCP server provides the following tools for working with dbt:
 
 ### Example 2: Listing dbt resources
 
+#### Simplified output (default)
 ```json
 {
   "resource_type": "model",
@@ -65,6 +66,32 @@ This MCP server provides the following tools for working with dbt:
   "output_format": "json"
 }
 ```
+
+This returns a simplified JSON with only `name`, `resource_type`, and `depends_on.nodes` for each resource:
+
+```json
+[
+  {
+    "name": "customers",
+    "resource_type": "model",
+    "depends_on": {
+      "nodes": ["model.jaffle_shop.stg_customers", "model.jaffle_shop.stg_orders"]
+    }
+  }
+]
+```
+
+#### Verbose output (full details)
+```json
+{
+  "resource_type": "model",
+  "project_dir": "/Users/username/dbt_projects/analytics",
+  "output_format": "json",
+  "verbose": true
+}
+```
+
+This returns the complete resource information including all configuration details.
 
 ### Example 3: Testing dbt models
 
