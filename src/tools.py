@@ -135,7 +135,7 @@ def register_tools(mcp: FastMCP) -> None:
     async def dbt_ls(
         models: Optional[str] = Field(
             default=None,
-            description="Specific models to list, using the dbt selection syntax"
+            description="Specific models to list, using the dbt selection syntax. Note that you probably want to specify your selection here e.g. silver.fact"
         ),
         selector: Optional[str] = Field(
             default=None,
