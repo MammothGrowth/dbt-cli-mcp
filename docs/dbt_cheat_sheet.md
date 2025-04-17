@@ -43,7 +43,7 @@ The dbt commands above have options that allow you to select and exclude models 
 * dbt command arguments: dbt docs serve
   *  --port
 * dbt command arguments: dbt ls / dbt list
-  * --select / -s, --exclude, --selector, --output, --output-keys, --resource-type
+  * --select / -s, --exclude, --selector, --output, --output-keys, --resource-type, --verbose
 * dbt command arguments: dbt run
   * --select / -s, --exclude, --selector, --resource-type, --defer, --empty, --full-refresh
 * dbt command arguments: dbt seed
