@@ -1,5 +1,7 @@
 # DBT CLI MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@MammothGrowth/dbt-cli-mcp)](https://smithery.ai/server/@MammothGrowth/dbt-cli-mcp)
+
 A Model Context Protocol (MCP) server that wraps the dbt CLI tool, enabling AI coding agents to interact with dbt projects through standardized MCP tools.
 
 ## Features
@@ -12,6 +14,14 @@ A Model Context Protocol (MCP) server that wraps the dbt CLI tool, enabling AI c
 - Flexible profiles.yml location configuration
 
 ## Installation
+
+### Installing via Smithery
+
+To install DBT CLI MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@MammothGrowth/dbt-cli-mcp):
+
+```bash
+npx -y @smithery/cli install @MammothGrowth/dbt-cli-mcp --client claude
+```
 
 ### Prerequisites
 
