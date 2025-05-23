@@ -1,0 +1,36 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => {
+      const args = ['-m', 'src.server'];
+      if (config.dbtPath) args.push('--dbt-path', config.dbtPath);
+      if (config.envFile) args.push('--env-file', config.envFile);
+      if (config.logLevel) args.push('--log-level', config.logLevel);
+      if (config.mockMode) args.push('--mock-mode');
+      return { command: 'python', args };
+    }
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    properties:
+      dbtPath:
+        type: string
+        default: dbt
+      envFile:
+        type: string
+        default: .env
+      logLevel:
+        type: string
+        default: INFO
+      mockMode:
+        type: boolean
+        default: false
+  exampleConfig:
+    dbtPath: dbt
+    envFile: .env
+    logLevel: INFO
+    mockMode: false
