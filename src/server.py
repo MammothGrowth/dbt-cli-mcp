@@ -56,14 +56,18 @@ def setup_logging(log_level):
     if not isinstance(numeric_level, int):
         numeric_level = logging.INFO
         
+    # Create logs directory if it doesn't exist
+    log_dir = Path("/workspaces/workflow-template/mcps/dbt-cli-mcp/logs")
+    log_dir.mkdir(exist_ok=True)
+    
     logging.basicConfig(
         level=numeric_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.StreamHandler(sys.stderr)
+            logging.StreamHandler(sys.stderr),  # Console output
+            logging.FileHandler(log_dir / "mcp_server.log")  # File output
         ]
     )
-
 
 def main():
     """Main entry point for the server."""

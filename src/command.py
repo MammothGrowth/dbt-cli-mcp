@@ -115,8 +115,22 @@ async def execute_dbt_command(
             stderr=asyncio.subprocess.PIPE
         )
         
-        # Communicate with the process
-        stdout_bytes, stderr_bytes = await process.communicate()
+        # Communicate with the process with timeout
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(),
+                timeout=1800  # 30 minutes timeout
+            )
+        except asyncio.TimeoutError:
+            # Kill the process if it times out
+            process.kill()
+            await process.wait()
+            return {
+                "success": False,
+                "output": None,
+                "error": "Command timed out after 30 minutes",
+                "returncode": -1
+            }
         stdout = stdout_bytes.decode('utf-8') if stdout_bytes else ""
         stderr = stderr_bytes.decode('utf-8') if stderr_bytes else ""
         success = process.returncode == 0
