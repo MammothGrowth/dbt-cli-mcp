@@ -2,6 +2,10 @@
 
 A Model Context Protocol (MCP) server that wraps the dbt CLI tool, enabling AI coding agents to interact with dbt projects through standardized MCP tools.
 
+<a href="https://glama.ai/mcp/servers/@MammothGrowth/dbt-cli-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@MammothGrowth/dbt-cli-mcp/badge" alt="dbt CLI Server MCP server" />
+</a>
+
 ## Features
 
 - Execute dbt commands through MCP tools
